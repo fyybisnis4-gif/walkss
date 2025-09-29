@@ -29,7 +29,6 @@ local savedTracks = {}
 local orderedTrackNames = {
     "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13"
 }
-
 -- Load Tracks
 for _, name in ipairs(orderedTrackNames) do
     local url = tracksURLs[name]
@@ -67,8 +66,14 @@ local function getHRP()
 end
 
 -- Respawn function
+-- Fungsi teleport menggantikan respawn
 local function respawnPlayer()
-    player.Character:BreakJoints()
+    local char = player.Character or player.CharacterAdded:Wait()
+    local hrp = char:WaitForChild("HumanoidRootPart")
+
+    -- Teleport ke cp17 dalam folder Checkpoints
+    local pad = workspace:WaitForChild("Checkpoints"):WaitForChild("cp17")
+    hrp.CFrame = pad.CFrame + Vector3.new(0, 5, 0) -- offset supaya ga nancep di part
 end
 
 -- FUNCTION PLAYTRACK
@@ -113,35 +118,31 @@ while elapsed < duration and running do
 
     local t = math.clamp(elapsed / duration, 0, 1)
     local alpha
-    if deltaY > 2 then
-        alpha = 1 - (1 - t) ^ 3
-    elseif deltaY < -2 then
-        alpha = t ^ 3
+if deltaY > 2 then
+    alpha = t ^ 2 -- Naik → awal lambat, akhir cepat
+elseif deltaY < -2 then
+    alpha = 1 - (1 - t) ^ 2 -- Turun → awal cepat, akhir lambat
+else
+    alpha = t -- Rata → linear
+end
+
+
+local currentPos
+if math.abs(deltaY) > 5 then
+    -- Smooth pakai easing curve biar natural (loncat/jatuh)
+    local easedT
+    if deltaY > 0 then
+        -- Naik → awal lambat, akhir cepat
+        easedT = t ^ 2
     else
-        alpha = t
+        -- Turun → awal cepat, akhir melambat
+        easedT = 1 - (1 - t) ^ 2
     end
+    currentPos = startPos:Lerp(targetPos, easedT)
+else
+    currentPos = startPos:Lerp(targetPos, alpha)
+end
 
-    local currentPos
-    if math.abs(deltaY) > 5 then
-        -- Tangga curam, pisahkan horizontal & vertical biar ga ngelayang
-        local t_h = math.clamp(elapsed / (duration * 0.7), 0, 1)
-        local t_v = math.clamp(elapsed / (duration * 0.3), 0, 1)
-
-        local horizPos = Vector3.new(
-            startPos.X + (targetPos.X - startPos.X) * t_h,
-            startPos.Y,
-            startPos.Z + (targetPos.Z - startPos.Z) * t_h
-        )
-        local vertPos = Vector3.new(
-            targetPos.X,
-            startPos.Y + (targetPos.Y - startPos.Y) * t_v,
-            targetPos.Z
-        )
-
-        currentPos = Vector3.new(horizPos.X, vertPos.Y, horizPos.Z)
-    else
-        currentPos = startPos:Lerp(targetPos, alpha)
-    end
 
 -- Hitung arah horizontal
 local direction = Vector3.new(targetPos.X - startPos.X, 0, targetPos.Z - startPos.Z)
@@ -161,7 +162,7 @@ end
 
 -- Lock orientasi ke arah track
 -- Lock tapi tetap smooth
-local blend = 0.20 -- makin besar makin kaku, makin kecil makin smooth
+local blend = 0.05 -- makin besar makin kaku, makin kecil makin smooth
 
 -- Posisi target
 local targetCFrame = CFrame.new(currentPos, currentPos + lookDir)
@@ -225,36 +226,29 @@ while elapsed < duration and running do
     elapsed += RunService.Heartbeat:Wait()
 
     local t = math.clamp(elapsed / duration, 0, 1)
-    local alpha
-    if deltaY > 2 then
-        alpha = 1 - (1 - t) ^ 3
-    elseif deltaY < -2 then
-        alpha = t ^ 3
+  local alpha
+if deltaY > 2 then
+    alpha = t ^ 2
+elseif deltaY < -2 then
+    alpha = 1 - (1 - t) ^ 2
+else
+    alpha = t
+end
+
+
+local currentPos
+if math.abs(deltaY) > 5 then
+    local easedT
+    if deltaY > 0 then
+        easedT = t ^ 2
     else
-        alpha = t
+        easedT = 1 - (1 - t) ^ 2
     end
+    currentPos = startPos:Lerp(targetPos, easedT)
+else
+    currentPos = startPos:Lerp(targetPos, alpha)
+end
 
-    local currentPos
-    if math.abs(deltaY) > 5 then
-        -- Tangga curam, pisahkan horizontal & vertical biar ga ngelayang
-        local t_h = math.clamp(elapsed / (duration * 0.7), 0, 1)
-        local t_v = math.clamp(elapsed / (duration * 0.3), 0, 1)
-
-        local horizPos = Vector3.new(
-            startPos.X + (targetPos.X - startPos.X) * t_h,
-            startPos.Y,
-            startPos.Z + (targetPos.Z - startPos.Z) * t_h
-        )
-        local vertPos = Vector3.new(
-            targetPos.X,
-            startPos.Y + (targetPos.Y - startPos.Y) * t_v,
-            targetPos.Z
-        )
-
-        currentPos = Vector3.new(horizPos.X, vertPos.Y, horizPos.Z)
-    else
-        currentPos = startPos:Lerp(targetPos, alpha)
-    end
 
 -- Hitung arah horizontal
 local direction = Vector3.new(targetPos.X - startPos.X, 0, targetPos.Z - startPos.Z)
@@ -292,13 +286,13 @@ hrp.CFrame = CFrame.new(currentPos) * (lerped - lerped.Position)
 end
 
 -- FUNCTION RESUMETRACKLOOP (YANG DIPERBAIKI)
--- FUNCTION RESUMETRACKLOOP (1x tanpa respawn/loop)
 local function resumeTrackLoop()
     if not resumeData.trackName or not resumeData.trackIndex then
         print("No resume data available")
         return
     end
     
+    -- Cari index dimulai dari track yang dipause
     local startIndex = resumeData.trackIndex
     for i = startIndex, #orderedTrackNames do
         if not running then break end
@@ -312,10 +306,12 @@ local function resumeTrackLoop()
         if track and #track > 1 then
             local success, finished
             if i == startIndex then
+                -- Resume dari titik terhenti
                 success, finished = pcall(function()
                     return playTrackFromPoint(track, name, resumeData.pointIndex, resumeData.lastFlatDir)
                 end)
             else
+                -- Mulai dari awal untuk track berikutnya
                 resumeData.pointIndex = 1
                 resumeData.lastFlatDir = Vector3.new(0, 0, 1)
                 success, finished = pcall(function()
@@ -335,57 +331,66 @@ local function resumeTrackLoop()
             end
         end
     end
+    
+if running then
+    print("Completed all tracks, teleporting to SummitReturnPad...")
+    respawnPlayer()
+    task.wait(1)
 
-    -- Selesai semua track → stop + animasi off
-    running = false
-    isPaused = false
-    bypassIsActive = false
-    animBtn.Text = "ANIMASI: OFF"
-    animBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-    stopResumeBtn.Text = "PAUSE"
-    stopResumeBtn.BackgroundColor3 = Color3.fromRGB(80, 0, 0)
+    -- Reset supaya mulai lagi dari awal
+    resumeData = {
+        trackName = orderedTrackNames[1],
+        trackIndex = 1,
+        pointIndex = 1,
+        lastFlatDir = Vector3.new(0, 0, 1)
+    }
 
-    print("✅ Semua track selesai sekali (no respawn / no loop) → Animasi OFF")
-end
-
--- FUNCTION RUNAUTOSUMMITLOOP (1x tanpa respawn/loop)
-local function runAutoSummitLoop()
-    for idx, name in ipairs(orderedTrackNames) do
-        if not running then break end
-
-        print("Playing track:", name)
-        resumeData.trackName = name
-        resumeData.trackIndex = idx
-        resumeData.pointIndex = 1
-
-        local success, finished = pcall(function()
-            return playTrack(savedTracks[name], name)
-        end)
-        
-        if not success then
-            print("Error playing track '" .. name .. "':", finished)
-            finished = false
-        end
-
-        if not running then break end
-        if not finished then
-            print("Track dihentikan:", name)
-            break
-        end
+    -- Lanjutkan loop setelah teleport
+    if running then
+        resumeTrackLoop()
     end
-
-    -- Selesai semua track → stop + animasi off
-    running = false
-    isPaused = false
-    bypassIsActive = false
-    animBtn.Text = "ANIMASI: OFF"
-    animBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-    stopResumeBtn.Text = "PAUSE"
-    stopResumeBtn.BackgroundColor3 = Color3.fromRGB(80, 0, 0)
-
-    print("✅ Semua track selesai sekali (no respawn / no loop) → Animasi OFF")
+end
 end
 
+-- FUNCTION RUNAUTOSUMMITLOOP (YANG DIPERBAIKI)
+local function runAutoSummitLoop()
+    while running do
+        for idx, name in ipairs(orderedTrackNames) do
+            if not running then break end
+
+            print("Playing track:", name)
+            resumeData.trackName = name
+            resumeData.trackIndex = idx
+            resumeData.pointIndex = 1
+
+            local success, finished = pcall(function()
+                return playTrack(savedTracks[name], name)
+            end)
+            
+            if not success then
+                print("Error playing track '" .. name .. "':", finished)
+                finished = false
+            end
+
+            if not running then break end
+            if not finished then
+                print("Track dihentikan:", name)
+                break
+            end
+        end
+
+        if running then
+    print("Completed all tracks, teleporting to SummitReturnPad...")
+    respawnPlayer()
+    task.wait(1)
+
+    -- Reset track index untuk loop berikutnya
+    resumeData.trackIndex = 1
+end
+
+    end
+    print("Auto summit loop stopped")
+end
 
 -- GUI Setup
 local ScreenGui = Instance.new("ScreenGui")
@@ -433,7 +438,7 @@ end)
 local autoBtn = Instance.new("TextButton", Frame)
 autoBtn.Size = UDim2.new(0.9, 0, 0, 40)
 autoBtn.Position = UDim2.new(0.05, 0, 0, 90)
-autoBtn.Text = "AUTO SUMMIT"
+autoBtn.Text = "AUTO SUMMIT (Loop)"
 autoBtn.BackgroundColor3 = Color3.fromRGB(0, 60, 100)
 autoBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
 autoBtn.TextScaled = true
