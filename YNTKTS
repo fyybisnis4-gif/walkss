@@ -10,11 +10,11 @@
 
 local tracksURLs = {
     ["1"] = "https://raw.githubusercontent.com/fyybisnis4-gif/walkss/refs/heads/main/YNT1.json",
-    ["2"] = "https://raw.githubusercontent.com/fyybisnis4-gif/walkss/refs/heads/main/YNT2.json",
+    ["2"] = "https://raw.githubusercontent.com/fyywannafly-sudo/age/refs/heads/main/YNTKTS_2.json",
     ["3"] = "https://raw.githubusercontent.com/fyybisnis4-gif/walkss/refs/heads/main/YNT3.json",
     ["4"] = "https://raw.githubusercontent.com/fyybisnis4-gif/walkss/refs/heads/main/YNT4.json",
     ["5"] = "https://raw.githubusercontent.com/fyybisnis4-gif/walkss/refs/heads/main/YNT5.json",
-    ["6"] = "https://raw.githubusercontent.com/fyybisnis4-gif/walkss/refs/heads/main/YNT6.json",
+    ["6"] = "https://raw.githubusercontent.com/fyywannafly-sudo/age/refs/heads/main/YNTKTS_7.json",
     ["7"] = "https://raw.githubusercontent.com/fyybisnis4-gif/walkss/refs/heads/main/YNT7.json",
     ["8"] = "https://raw.githubusercontent.com/fyybisnis4-gif/walkss/refs/heads/main/YNT8.json",
     ["9"] = "https://raw.githubusercontent.com/fyybisnis4-gif/walkss/refs/heads/main/YNT9.json",
